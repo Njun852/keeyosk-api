@@ -11,7 +11,7 @@ const port = process.env.PORT || 4000;
 const app = express();
 const server = createServer(app);
 const io = new Server(server);
-app.use(cors()); 
+app.use(require('cors')()); 
 // app.get('/', (req, res) => {
 //   res.sendFile(join(__dirname, 'index.html'));
 // });
