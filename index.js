@@ -20,7 +20,7 @@ io.on('connection', (socket) => {
   console.log('a user connected');
 });
 
-server.listen(3000, () => {
+server.listen(port, () => {
   console.log('server running at http://localhost:3000');
 });
 // Your web app's Firebase configuration
