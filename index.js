@@ -18,6 +18,9 @@ app.use(require('cors')());
 
 io.on('connection', (socket) => {
   console.log('a user connected');
+  socket.on("sent order", (order)=>{
+    console.log(order);
+  })
 });
 
 server.listen(port, () => {
