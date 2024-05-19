@@ -16,9 +16,8 @@ app.use(require('cors')());
 app.use('/category', categoryRouter)
 
 io.on('connection', (socket) => {
-  console.log('a user connected');
-  socket.on("send order", (order)=>{
-    io.emit("recieve order", order);
+  socket.on("request order", (order)=>{
+    io.emit("recieved order request", order);
   })
 });
 
