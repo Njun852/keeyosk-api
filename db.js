@@ -2,10 +2,10 @@ const msql = require('mysql2/promise')
 
 const pool = msql.createPool(
     {
-        host: 'localhost',
-        database: 'keeyosk_db',
-        password: "password",
-        user: "root",
+        host: 'sql12.freemysqlhosting.net',
+        database: 'sql12709807',
+        password: "lU6VNETjFr",
+        user: "sql12709807",
         port: 3306,
         waitForConnections: true,
         connectionLimit: 10,
