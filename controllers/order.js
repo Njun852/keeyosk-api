@@ -41,7 +41,6 @@ async function getAllOrders(req, res) {
             );
           })
         );
-        console.log("aaaaaaaaaaaaa", res);
         return {
           order_id: result.order_id,
           table_number: result.table_number,

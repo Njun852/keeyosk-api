@@ -2,6 +2,7 @@ const db = require("../db");
 const { options } = require("../routes/productOption");
 
 async function addOptionWithItems(req) {
+  console.log(req.body.options[0].items)
   req.body.options.forEach(async (option) => {
     await db.query(
       `
@@ -16,8 +17,7 @@ async function addOptionWithItems(req) {
         option.is_multiselect,
       ]
     );
-    console.log(option.option_id);
-    option.option_items.forEach(async (item) => {
+    option.items.forEach(async (item) => {
       await db.query(
         `INSERT INTO product_option_item(item_id, option_id, 
                 item_name, additional_price) VALUES(?, ?, ?, ?)`,
@@ -25,10 +25,11 @@ async function addOptionWithItems(req) {
       );
     });
   });
-
+  await db.query("DELETE FROM product_image WHERE product_id = ?", [
+    req.body.product_id,
+  ]);
   req.body.images.forEach(async (image) => {
     const imgBuffer = Buffer.from(image.file);
-
     await db.query(
       "INSERT INTO product_image(image_id, product_id, image) VALUES(?, ?, ?)",
       [image.image_id, req.body.product_id, imgBuffer]
@@ -36,14 +37,13 @@ async function addOptionWithItems(req) {
   });
 }
 async function addProduct(req, res) {
-  console.log("what????");
   try {
     await db.query(
       `INSERT INTO product(product_id, category_id, 
             product_name, price, discount, description, is_available) VALUES(?, ?, ?, ?, ?, ?, ?)`,
       [
         req.body.product_id,
-        req.body.category_id,
+        req.body.category.category_id,
         req.body.product_name,
         req.body.price,
         req.body.discount,
@@ -52,6 +52,8 @@ async function addProduct(req, res) {
       ]
     );
     await addOptionWithItems(req);
+    console.log(res);
+
     res.send(200);
   } catch (error) {
     console.log(error);
@@ -60,11 +62,12 @@ async function addProduct(req, res) {
 }
 async function updateProduct(req, res) {
   try {
+    console.log("updating");
     await db.query(
       `UPDATE product SET category_id = ?, product_name = ?,
         price = ?, discount = ?, description = ?, is_available = ? WHERE product_id = ?`,
       [
-        req.body.category_id,
+        req.body.category.category_id,
         req.body.product_name,
         req.body.price,
         req.body.discount,
@@ -73,13 +76,14 @@ async function updateProduct(req, res) {
         req.params.id,
       ]
     );
-    await db.query("DELETE product_option WHERE product_id = ?", [
+    await db.query("DELETE FROM product_option WHERE product_id = ?", [
       req.params.id,
     ]);
     await addOptionWithItems(req);
 
     res.send(200);
   } catch (error) {
+    console.log(error);
     res.send(400);
   }
 }
@@ -94,50 +98,54 @@ async function deleteProduct(req, res) {
 }
 async function getProduct(req, res) {
   try {
-    const [[product]] = await db.query(
-      "SELECT * FROM product WHERE product_id = ?",
-      [req.params.id]
-    );
-    const [options] = await db.query(
-      "SELECT * FROM product_option WHERE product_id = ?",
-      [req.params.id]
-    );
-
-    const optionItems = await Promise.all(
-      options.map(async (option) => {
-        const [results] = await db.query(
-          "SELECT * FROM product_option_item WHERE option_id = ?",
-          [option.option_id]
-        );
-        return results;
-      })
-    );
+    const query = `SELECT product_id, product.category_id, 
+    product_name, price, discount, is_available,
+    description, category_label, is_available
+    FROM product INNER JOIN category 
+    ON category.category_id = product.category_id AND product.product_id = ?;`;
+    const [[product]] = await db.query(query, [req.params.id]);
 
     const [images] = await db.query(
       "SELECT * FROM product_image WHERE product_id = ?",
-      [req.params.id]
+      [product.product_id]
     );
-
-    res.json({
-      success: true,
-      data: {
-        product_id: req.params.id,
-        price: product.price,
-        discount: product.discount,
-        is_available: product.is_available,
-        description: product.description,
-        product_name: product.product_name,
+    const [options] = await db.query(
+      "SELECT * FROM product_option WHERE product_id = ?",
+      [product.product_id]
+    );
+    const optionsWithItems = await Promise.all(
+      options.map(async (option) => {
+        const [optionItems] = await db.query(
+          `SELECT item_id, item_name, additional_price 
+          FROM product_option_item WHERE option_id = ?`,
+          [option.option_id]
+        );
+        return {
+          ...option,
+          items: optionItems,
+        };
+      })
+    );
+    const data = {
+      product_id: product.product_id,
+      product_name: product.product_name,
+      is_available: product.is_available,
+      price: product.price,
+      discount: product.discount,
+      description: product.description,
+      category: {
         category_id: product.category_id,
-        images: images,
-        options: options.map((option, index) => ({
-          option_id: option.option_id,
-          option_name: option.option_name,
-          is_required: option.is_required,
-          is_multiselect: option.is_multiselect,
-          option_items: optionItems[index],
-        })),
+        category_label: product.category_label,
       },
-    });
+      options: optionsWithItems,
+      images: images.map((image) => ({
+        image_id: image.image_id,
+        product_id: image.product_id,
+        file: JSON.parse(JSON.stringify(image.image)).data,
+      })),
+    };
+
+    res.status(200).json(data);
   } catch (error) {
     console.log(error);
     res.send(400);
@@ -152,7 +160,6 @@ async function getAllProduct(req, res) {
     ON category.category_id = product.category_id;`;
 
     const [products] = await db.query(query, [req.params.id]);
-    console.log(products[0]);
     const data = await Promise.all(
       products.map(async (product) => {
         const [images] = await db.query(
@@ -176,6 +183,7 @@ async function getAllProduct(req, res) {
             };
           })
         );
+
         return {
           product_id: product.product_id,
           product_name: product.product_name,

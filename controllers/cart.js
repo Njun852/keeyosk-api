@@ -1,7 +1,6 @@
 const db = require("../db");
 
 async function getCart(req, res) {
-  console.log("wjhats");
 
   try {
     const [[result]] = await db.query(`SELECT * FROM cart WHERE cart_id = ?`, [
@@ -21,13 +20,15 @@ async function addCart(req, res) {
       `INSERT INTO cart(cart_id, product_id, quantity, user_id, is_hidden) VALUES (?, ?, ?, ?, 0)`,
       [data.cart_id, data.product_id, data.quantity, data.user_id]
     );
+    console.log('why?', data.selected_options)
     data.selected_options.forEach(async (option) => {
       await db.query(
         `INSERT INTO selected_option_item( cart_id, item_id)
             VALUES( ?, ?)`,
-        [data.cart_id, option]
+        [data.cart_id, option.item_id]
       );
     });
+    console.log('added cart')
     res.sendStatus(200);
   } catch (error) {
     console.log(error);
@@ -46,6 +47,7 @@ async function removeCart(req, res) {
 }
 
 async function editCart(req, res) {
+  console.log('this should run')
   try {
     await db.query(
       "UPDATE cart SET quantity = ?, is_hidden = ? WHERE cart_id = ?",
@@ -84,8 +86,8 @@ async function getAllCart(req, res) {
         };
       })
     );
-    console.log(data);
-    res.json({ success: true, data: data });
+
+    res.status(200).json(data);
   } catch (error) {
     console.log(error);
     res.sendStatus(400);
