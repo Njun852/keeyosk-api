@@ -36,7 +36,7 @@ async function addOptionWithItems(req) {
   });
 }
 async function addProduct(req, res) {
-  console.log('what????');
+  console.log("what????");
   try {
     await db.query(
       `INSERT INTO product(product_id, category_id, 
@@ -59,8 +59,7 @@ async function addProduct(req, res) {
   }
 }
 async function updateProduct(req, res) {
-  console.log('heyyyy')
-    try {
+  try {
     await db.query(
       `UPDATE product SET category_id = ?, product_name = ?,
         price = ?, discount = ?, description = ?, is_available = ? WHERE product_id = ?`,
@@ -89,7 +88,7 @@ async function deleteProduct(req, res) {
     await db.query("DELETE FROM product WHERE product_id = ?", [req.params.id]);
     res.send(200);
   } catch (error) {
-    console.log(error)
+    console.log(error);
     res.send(400);
   }
 }
@@ -146,53 +145,58 @@ async function getProduct(req, res) {
 }
 async function getAllProduct(req, res) {
   try {
-    const [products] = await db.query("SELECT * FROM product", [req.params.id]);
+    const query = `SELECT product_id, product.category_id, 
+    product_name, price, discount, is_available,
+    description, category_label, is_available
+    FROM product INNER JOIN category 
+    ON category.category_id = product.category_id;`;
 
-    const result = await Promise.all(
+    const [products] = await db.query(query, [req.params.id]);
+    console.log(products[0]);
+    const data = await Promise.all(
       products.map(async (product) => {
-        const [options] = await db.query(
-          "SELECT * FROM product_option WHERE product_id = ?",
-          [product.product_id]
-        );
-
-        const optionItems = await Promise.all(
-          options.map(async (option) => {
-            const [results] = await db.query(
-              "SELECT * FROM product_option_item WHERE option_id = ?",
-              [option.option_id]
-            );
-            return results;
-          })
-        );
-
         const [images] = await db.query(
           "SELECT * FROM product_image WHERE product_id = ?",
           [product.product_id]
         );
-
+        const [options] = await db.query(
+          "SELECT * FROM product_option WHERE product_id = ?",
+          [product.product_id]
+        );
+        const optionsWithItems = await Promise.all(
+          options.map(async (option) => {
+            const [optionItems] = await db.query(
+              `SELECT item_id, item_name, additional_price 
+          FROM product_option_item WHERE option_id = ?`,
+              [option.option_id]
+            );
+            return {
+              ...option,
+              items: optionItems,
+            };
+          })
+        );
         return {
           product_id: product.product_id,
+          product_name: product.product_name,
+          is_available: product.is_available,
           price: product.price,
           discount: product.discount,
-          is_available: product.is_available,
           description: product.description,
-          product_name: product.product_name,
-          category_id: product.category_id,
-          images: images,
-          options: options.map((option, index) => ({
-            option_id: option.option_id,
-            option_name: option.option_name,
-            is_required: option.is_required,
-            is_multiselect: option.is_multiselect,
-            option_items: optionItems[index],
+          category: {
+            category_id: product.category_id,
+            category_label: product.category_label,
+          },
+          options: optionsWithItems,
+          images: images.map((image) => ({
+            image_id: image.image_id,
+            product_id: image.product_id,
+            file: JSON.parse(JSON.stringify(image.image)).data,
           })),
         };
       })
     );
-    res.json({
-      success: true,
-      data: result,
-    });
+    res.status(200).send(data);
   } catch (error) {
     console.log(error);
     res.send(400);
