@@ -18,7 +18,6 @@ async function addCategory(req, res) {
 async function editCategory(req, res) {
     const newData = req.body
     let id = req.params.id
-    console.log('new data:', newData)
     try {
         const [checkResult] = await db.query('SELECT * FROM category WHERE category_id = ? LIMIT 1', [id])
         if(checkResult.length == 0) {

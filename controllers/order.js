@@ -1,8 +1,6 @@
 const db = require("../db");
 
 async function getOrder(req, res) {
-  console.log("why here?");
-
   try {
     const [[result]] = await db.query(
       `SELECT * FROM product_order WHERE order_id = ?`,
@@ -17,14 +15,32 @@ async function getOrder(req, res) {
 
 async function getAllOrders(req, res) {
   try {
-    const [results] = await db.query(
+    //remove order if it has no product is empty
+    const [partial] = await db.query(
       `SELECT * FROM product_order WHERE status = 'pending'`
     );
+    partial.forEach(async (order) => {
+      const [items] = await db.query(
+        "SELECT * FROM order_item WHERE order_id = ?",
+        [order.order_id]
+      );
+      if (items.length <= 0) {
+        console.log("gone");
+        await db.query("DELETE FROM product_order WHERE order_id = ?", [
+          order.order_id,
+        ]);
+      }
+    });
+
+    const [orders] = await db.query(
+      `SELECT * FROM product_order WHERE status = 'pending'`
+    );
+
     const result = await Promise.all(
-      results.map(async (result) => {
+      orders.map(async (order) => {
         const [carts] = await db.query(
           `SELECT * FROM order_item WHERE order_id = ?`,
-          [result.order_id]
+          [order.order_id]
         );
         const res = await Promise.all(
           carts.map(async (cart) => {
@@ -32,28 +48,36 @@ async function getAllOrders(req, res) {
               `SELECT * FROM cart WHERE cart_id = ?`,
               [cart.cart_id]
             );
-            selected_options = await Promise.all(
-              results.map(async (option) => {
-                `SELECT * FROM product_option_item WHERE item_id = ?`,
-                  [option.item_id];
-                return result;
-              })
+            const [selectedOptions] = await db.query(
+              `SELECT * FROM selected_option_item WHERE cart_id = ?`,
+              [cart.cart_id]
             );
+            return {
+              ...result,
+              selected_options: await Promise.all(
+                selectedOptions.map(async (selected) => {
+                  const [[result]] = await db.query(
+                    "SELECT * FROM product_option_item WHERE item_id = ?",
+                    [selected.item_id]
+                  );
+                  return result;
+                })
+              ),
+            };
           })
         );
         return {
-          order_id: result.order_id,
-          table_number: result.table_number,
-          order_date: result.order_date,
-          user_id: result.user_id,
-          order_mode: result.order_mode,
-          order_hour: result.order_hour,
-          status: result.status,
+          order_id: order.order_id,
+          table_number: order.table_number,
+          user_id: order.user_id,
+          order_mode: order.order_mode,
+          order_timestamp: order.order_timestamp,
+          status: order.status,
           carts: res,
         };
       })
     );
-    res.json({ success: true, data: result });
+    res.status(200).json(result);
   } catch (error) {
     console.log(error);
     res.sendStatus(400);
@@ -66,7 +90,7 @@ async function deleteOrder(req, res) {
       `SELECT * FROM order_item WHERE order_id = ?`,
       [req.params.id]
     );
-    orderItems.forEach(async (orderItem) => {
+    await orderItems.forEach(async (orderItem) => {
       await db.query(`DELETE FROM cart WHERE cart_id = ?`, [orderItem.cart_id]);
     });
     await db.query(`DELETE FROM product_order WHERE order_id = ?`, [
@@ -94,18 +118,18 @@ async function updateOrder(req, res) {
 
 async function addOrder(req, res) {
   const data = req.body;
+  console.log(data);
   try {
     await db.query(
-      `INSERT INTO product_order(order_id, table_number, user_id, status, order_mode, order_date, order_hour) 
-      VALUES(?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO product_order(order_id, table_number, user_id, status, order_mode, order_timestamp) 
+      VALUES(?, ?, ?, ?, ?, ?)`,
       [
         data.order_id,
         data.table_number,
         data.user_id,
         data.status,
         data.order_mode,
-        data.order_date,
-        data.order_hour,
+        data.order_timestamp,
       ]
     );
     data.carts.forEach(async (cart) => {

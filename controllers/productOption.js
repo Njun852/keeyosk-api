@@ -2,23 +2,6 @@ const db = require('../db')
 async function addProductOption(req, res)  {
     const options = req.body
     try {
-        const args = []
-        let val = ''
-        for(let i = 0; i < options.length; i++) {
-            val += '(?, ?, ?, ?, ?)'
-            if(i != options.length-1) {
-                val += ','
-            }
-            args.push(options[i].option_id, options[i].product_id, 
-                options[i].option_name, options[i].is_required, options[i].is_multiselect)
-        }
-        
-        await db.query(`
-        INSERT INTO product_option(
-            option_id, product_id, option_name, is_required, is_multiselect) 
-            VALUES${val};`, args)
-
-    
         options.array.forEach(async option =>  {
         await db.query(`
         INSERT INTO product_option(

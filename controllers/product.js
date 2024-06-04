@@ -2,33 +2,53 @@ const db = require("../db");
 const { options } = require("../routes/productOption");
 
 async function addOptionWithItems(req) {
-  console.log(req.body.options[0].items)
-  req.body.options.forEach(async (option) => {
+  await req.body.options.forEach(async (option) => {
     await db.query(
       `
         INSERT INTO product_option(
-            option_id, product_id, option_name, is_required, is_multiselect) 
-            VALUES(?, ?, ?, ?, ?);`,
+            option_id, product_id, option_name, is_required, is_multiselect, created_at) 
+            VALUES(?, ?, ?, ?, ?, ?);`,
       [
         option.option_id,
         req.body.product_id,
         option.option_name,
         option.is_required,
         option.is_multiselect,
+        option.created_at,
       ]
     );
-    option.items.forEach(async (item) => {
+    await option.items.forEach(async (item) => {
       await db.query(
         `INSERT INTO product_option_item(item_id, option_id, 
-                item_name, additional_price) VALUES(?, ?, ?, ?)`,
-        [item.item_id, option.option_id, item.item_name, item.additional_price]
+                item_name, additional_price, created_at) VALUES(?, ?, ?, ?, ?)`,
+        [
+          item.item_id,
+          option.option_id,
+          item.item_name,
+          item.additional_price,
+          item.created_at,
+        ]
       );
     });
+  });
+  const [selected] = await db.query(`SELECT * FROM selected_option_item`);
+  await selected.forEach(async (item) => {
+    const [match] = await db.query(
+      `SELECT * FROM product_option_item WHERE
+    item_id = ?`,
+      [item.item_id]
+    );
+    if (match.length <= 0) {
+      console.log("is gone");
+      await db.query(`DELETE FROM selected_option_item WHERE item_id = ?`, [
+        item.item_id,
+      ]);
+    }
   });
   await db.query("DELETE FROM product_image WHERE product_id = ?", [
     req.body.product_id,
   ]);
-  req.body.images.forEach(async (image) => {
+  await req.body.images.forEach(async (image) => {
     const imgBuffer = Buffer.from(image.file);
     await db.query(
       "INSERT INTO product_image(image_id, product_id, image) VALUES(?, ?, ?)",
@@ -52,7 +72,6 @@ async function addProduct(req, res) {
       ]
     );
     await addOptionWithItems(req);
-    console.log(res);
 
     res.send(200);
   } catch (error) {
@@ -62,7 +81,6 @@ async function addProduct(req, res) {
 }
 async function updateProduct(req, res) {
   try {
-    console.log("updating");
     await db.query(
       `UPDATE product SET category_id = ?, product_name = ?,
         price = ?, discount = ?, description = ?, is_available = ? WHERE product_id = ?`,
@@ -167,14 +185,14 @@ async function getAllProduct(req, res) {
           [product.product_id]
         );
         const [options] = await db.query(
-          "SELECT * FROM product_option WHERE product_id = ?",
+          "SELECT * FROM product_option WHERE product_id = ? ORDER BY created_at",
           [product.product_id]
         );
         const optionsWithItems = await Promise.all(
           options.map(async (option) => {
             const [optionItems] = await db.query(
-              `SELECT item_id, item_name, additional_price 
-          FROM product_option_item WHERE option_id = ?`,
+              `SELECT *
+          FROM product_option_item WHERE option_id = ? ORDER BY created_at`,
               [option.option_id]
             );
             return {
@@ -204,6 +222,7 @@ async function getAllProduct(req, res) {
         };
       })
     );
+
     res.status(200).send(data);
   } catch (error) {
     console.log(error);

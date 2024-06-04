@@ -1,8 +1,7 @@
 CREATE TABLE product_order (
     order_id VARCHAR(255) PRIMARY KEY,
     table_number VARCHAR(50) NOT NULL,
-    order_date VARCHAR(25) NOT NULL,
-    order_hour VARCHAR(25) NOT NULL,
+    order_timestamp DATETIME NOT NULL,
     voucher_id VARCHAR(255),
     user_id VARCHAR(255) NOT NULL, 
     status VARCHAR(15) NOT NULL,

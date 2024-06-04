@@ -1,7 +1,6 @@
 const db = require("../db");
 
 async function getCart(req, res) {
-
   try {
     const [[result]] = await db.query(`SELECT * FROM cart WHERE cart_id = ?`, [
       req.params.id,
@@ -20,7 +19,6 @@ async function addCart(req, res) {
       `INSERT INTO cart(cart_id, product_id, quantity, user_id, is_hidden) VALUES (?, ?, ?, ?, 0)`,
       [data.cart_id, data.product_id, data.quantity, data.user_id]
     );
-    console.log('why?', data.selected_options)
     data.selected_options.forEach(async (option) => {
       await db.query(
         `INSERT INTO selected_option_item( cart_id, item_id)
@@ -28,7 +26,6 @@ async function addCart(req, res) {
         [data.cart_id, option.item_id]
       );
     });
-    console.log('added cart')
     res.sendStatus(200);
   } catch (error) {
     console.log(error);
@@ -47,7 +44,6 @@ async function removeCart(req, res) {
 }
 
 async function editCart(req, res) {
-  console.log('this should run')
   try {
     await db.query(
       "UPDATE cart SET quantity = ?, is_hidden = ? WHERE cart_id = ?",
@@ -65,17 +61,36 @@ async function getAllCart(req, res) {
     const [results] = await db.query("SELECT * FROM cart WHERE user_id = ?", [
       req.params.id,
     ]);
+
     //this is very ugly
     const data = await Promise.all(
       results.map(async (result) => {
-        const [results] = await db.query(
+        // const [selected] = await db.query(
+        //   `SELECT * FROM selected_option_item WHERE cart_id = ?`,
+        //   [result.cart_id]
+        // );
+        // selected.forEach(async (item) => {
+        //   const [match] = await db.query(
+        //     `SELECT * FROM product_option_item WHERE
+        //   item_id = ?`,
+        //     [item.item_id]
+        //   );
+        //   console.log(match)
+        //   if (match.length <= 0) {
+        //     const e = await db.query(
+        //       `DELETE FROM selected_option_item WHERE item_id = ?`,
+        //       [item.item_id]
+        //     );
+        //   }
+        // });
+        const [selectedOptions] = await db.query(
           `SELECT * FROM selected_option_item WHERE cart_id = ?`,
           [result.cart_id]
         );
         return {
           ...result,
           selected_options: await Promise.all(
-            results.map(async (option) => {
+            selectedOptions.map(async (option) => {
               const [[res]] = await db.query(
                 `SELECT * FROM product_option_item WHERE item_id = ?`,
                 [option.item_id]
@@ -86,7 +101,7 @@ async function getAllCart(req, res) {
         };
       })
     );
-
+    console.log("cart", data);
     res.status(200).json(data);
   } catch (error) {
     console.log(error);
